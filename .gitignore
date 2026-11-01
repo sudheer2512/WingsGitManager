@@ -1,0 +1,12 @@
+bin/
+obj/
+App_Data/
+.tools/
+node_modules/
+web/.angular/
+src/Wings.GitManager.Api/wwwroot/
+*.user
+.vs/
+.idea/
+.DS_Store
+TestResults/

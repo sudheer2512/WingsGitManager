@@ -1,0 +1,20 @@
+# Wings Git Manager background worker (push queue, jobs, backups, monitoring, file watcher).
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+COPY Directory.Build.props Wings.GitManager.slnx ./
+COPY src/ src/
+RUN dotnet publish src/Wings.GitManager.Worker -c Release -o /app --no-self-contained
+
+FROM mcr.microsoft.com/dotnet/runtime:10.0 AS runtime
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/* \
+    && groupadd --system --gid 10001 wings && useradd --system --uid 10001 --gid wings --home-dir /var/lib/wings --create-home wings \
+    && mkdir -p /var/lib/wings/workspaces /var/lib/wings/data /var/lib/wings/backups /var/log/wings && chown -R wings:wings /var/lib/wings /var/log/wings
+WORKDIR /app
+COPY --from=build /app .
+USER wings
+ENV GitManager__WorkspaceRoots__0=/var/lib/wings/workspaces \
+    GitManager__DataDirectory=/var/lib/wings/data \
+    Backup__FileSystemRoot=/var/lib/wings/backups \
+    Worker__RunInApi=false \
+    Serilog__WriteTo__0__Args__path=/var/log/wings/worker-.log
+ENTRYPOINT ["dotnet", "Wings.GitManager.Worker.dll"]

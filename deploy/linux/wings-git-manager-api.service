@@ -1,0 +1,29 @@
+# /etc/systemd/system/wings-git-manager-api.service  (Linux + Nginx deployment)
+[Unit]
+Description=Wings Git Manager API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=wings
+Group=wings
+WorkingDirectory=/opt/wings-git-manager/api
+ExecStart=/usr/bin/dotnet /opt/wings-git-manager/api/Wings.GitManager.Api.dll
+Environment=ASPNETCORE_URLS=http://127.0.0.1:5380
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=Worker__RunInApi=false
+# Secrets (Gitea token, backup key, connection string) live in a root-readable env file:
+EnvironmentFile=/etc/wings-git-manager/secrets.env
+Restart=always
+RestartSec=5
+# Restricted OS privileges for Git operations.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/wings /var/log/wings
+CapabilityBoundingSet=
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

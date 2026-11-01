@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Wings.GitManager.Contracts</RootNamespace>
+    <PackageId>Wings.GitManager.Contracts</PackageId>
+    <Description>Request/response contracts for the Wings Git Manager REST API.</Description>
+  </PropertyGroup>
+</Project>

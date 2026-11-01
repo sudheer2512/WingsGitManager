@@ -1,0 +1,32 @@
+# Wings Git Manager API (+ Angular UI). Build from the repository root:
+#   docker build -f deploy/docker/Dockerfile.api -t wings-git-manager-api .
+FROM node:24-alpine AS ui
+WORKDIR /src/web
+COPY web/package*.json ./
+RUN npm ci
+COPY web/ ./
+RUN mkdir -p /src/src/Wings.GitManager.Api && npm run build
+
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+COPY Directory.Build.props Wings.GitManager.slnx ./
+COPY src/ src/
+RUN dotnet publish src/Wings.GitManager.Api -c Release -o /app --no-self-contained
+COPY --from=ui /src/src/Wings.GitManager.Api/wwwroot /app/wwwroot
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+# Native Git CLI is the version-control engine; run as an unprivileged user.
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates curl && rm -rf /var/lib/apt/lists/* \
+    && groupadd --system --gid 10001 wings && useradd --system --uid 10001 --gid wings --home-dir /var/lib/wings --create-home wings \
+    && mkdir -p /var/lib/wings/workspaces /var/lib/wings/data /var/lib/wings/backups /var/log/wings && chown -R wings:wings /var/lib/wings /var/log/wings
+WORKDIR /app
+COPY --from=build /app .
+USER wings
+ENV ASPNETCORE_URLS=http://+:8080 \
+    GitManager__WorkspaceRoots__0=/var/lib/wings/workspaces \
+    GitManager__DataDirectory=/var/lib/wings/data \
+    Backup__FileSystemRoot=/var/lib/wings/backups \
+    Serilog__WriteTo__0__Args__path=/var/log/wings/api-.log
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=5s CMD curl -fsS http://localhost:8080/health/ready || exit 1
+ENTRYPOINT ["dotnet", "Wings.GitManager.Api.dll"]

@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Wings.GitManager.Client</RootNamespace>
+    <PackageId>Wings.GitManager.Client</PackageId>
+    <Description>Typed C# SDK used by Wings Code to call the Wings Git Manager API.</Description>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Wings.GitManager.Contracts\Wings.GitManager.Contracts.csproj" />
+  </ItemGroup>
+</Project>

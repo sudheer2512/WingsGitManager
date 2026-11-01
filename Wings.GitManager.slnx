@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Wings.GitManager.Contracts/Wings.GitManager.Contracts.csproj" />
+    <Project Path="src/Wings.GitManager.Core/Wings.GitManager.Core.csproj" />
+    <Project Path="src/Wings.GitManager.Infrastructure/Wings.GitManager.Infrastructure.csproj" />
+    <Project Path="src/Wings.GitManager.Api/Wings.GitManager.Api.csproj" />
+    <Project Path="src/Wings.GitManager.Worker/Wings.GitManager.Worker.csproj" />
+    <Project Path="src/Wings.GitManager.Client/Wings.GitManager.Client.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Wings.GitManager.UnitTests/Wings.GitManager.UnitTests.csproj" />
+    <Project Path="tests/Wings.GitManager.IntegrationTests/Wings.GitManager.IntegrationTests.csproj" />
+  </Folder>
+</Solution>

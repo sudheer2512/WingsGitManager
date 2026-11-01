@@ -1,0 +1,104 @@
+# Wings Git Manager production-style stack: API (+UI), worker, Gitea, SQL Server, Nginx (TLS).
+# For resilience, run Gitea and SQL Server on separate hosts/volumes and point the URLs below at them.
+name: wings-git-manager
+
+x-gitmanager-env: &gm-env
+  Database__Provider: SqlServer
+  Database__AutoCreate: "false"   # apply database/sqlserver/create.sql once (see docs/operations.md)
+  ConnectionStrings__GitManager: "Server=sqlserver;Database=WingsGitManager;User Id=sa;Password=${SQL_SA_PASSWORD};TrustServerCertificate=True;Encrypt=True"
+  GitManager__DefaultProvider: Gitea
+  GitManager__AllowHttpRemotes: "true"   # internal network only; use https://${GITEA_HOST} when Gitea is remote
+  Gitea__BaseUrl: http://gitea:3000
+  Gitea__ServiceUser: ${GITEA_SERVICE_USER}
+  Gitea__Token: ${GITEA_TOKEN}
+  Gitea__WebhookUrl: http://api:8080/api/v1/webhooks/gitea
+  Gitea__WebhookSecret: ${GITEA_WEBHOOK_SECRET}
+  Backup__Provider: ${BACKUP_PROVIDER:-filesystem}
+  Backup__EncryptionKey: ${BACKUP_ENCRYPTION_KEY}
+  Backup__S3__ServiceUrl: ${S3_SERVICE_URL}
+  Backup__S3__Bucket: ${S3_BUCKET}
+  Backup__S3__AccessKey: ${S3_ACCESS_KEY}
+  Backup__S3__SecretKey: ${S3_SECRET_KEY}
+  Authentication__Oidc__Authority: ${OIDC_AUTHORITY}
+
+services:
+  api:
+    build: { context: ../.., dockerfile: deploy/docker/Dockerfile.api }
+    image: wings-git-manager-api:latest
+    restart: unless-stopped
+    environment:
+      <<: *gm-env
+      Worker__RunInApi: "false"
+      ReverseProxy__KnownProxies__0: 172.30.0.10
+    volumes:
+      - workspaces:/var/lib/wings/workspaces      # shared with Wings Code and the worker
+      - gm-data:/var/lib/wings/data
+      - backups:/var/lib/wings/backups
+    depends_on: [sqlserver, gitea]
+    networks: { internal: { ipv4_address: 172.30.0.20 } }
+
+  worker:
+    build: { context: ../.., dockerfile: deploy/docker/Dockerfile.worker }
+    image: wings-git-manager-worker:latest
+    restart: unless-stopped
+    environment:
+      <<: *gm-env
+      Worker__InstanceName: worker-1
+    volumes:
+      - workspaces:/var/lib/wings/workspaces
+      - gm-data:/var/lib/wings/data
+      - backups:/var/lib/wings/backups
+    depends_on: [api]
+    networks: [internal]
+
+  gitea:
+    image: gitea/gitea:28.2.0-rootless   # the release the integration tests were run against
+    restart: unless-stopped
+    environment:
+      GITEA__server__ROOT_URL: https://${GITEA_HOST}/
+      GITEA__server__DISABLE_SSH: "true"
+      GITEA__service__DISABLE_REGISTRATION: "true"
+      GITEA__service__REQUIRE_SIGNIN_VIEW: "true"
+      GITEA__repository__DEFAULT_PRIVATE: private
+      GITEA__repository__DEFAULT_BRANCH: main
+      GITEA__webhook__ALLOWED_HOST_LIST: private
+      GITEA__security__INSTALL_LOCK: "true"
+      GITEA__database__DB_TYPE: sqlite3
+    volumes:
+      - gitea-data:/var/lib/gitea           # repositories: put on a dedicated, backed-up volume
+      - gitea-config:/etc/gitea
+    networks: [internal]
+
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${SQL_SA_PASSWORD}
+    volumes: [ "sql-data:/var/opt/mssql" ]
+    networks: [internal]
+
+  nginx:
+    image: nginx:1.29-alpine
+    restart: unless-stopped
+    ports: [ "443:443", "80:80" ]
+    volumes:
+      - ../nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./certs:/etc/nginx/certs:ro      # fullchain.pem + privkey.pem for both hosts
+    environment:
+      PUBLIC_HOST: ${PUBLIC_HOST}
+      GITEA_HOST: ${GITEA_HOST}
+    depends_on: [api, gitea]
+    networks: { internal: { ipv4_address: 172.30.0.10 } }
+
+volumes:
+  workspaces: {}
+  gm-data: {}
+  backups: {}      # use S3 (Backup__Provider=s3) or a volume on a DIFFERENT storage system in production
+  gitea-data: {}
+  gitea-config: {}
+  sql-data: {}
+
+networks:
+  internal:
+    ipam: { config: [ { subnet: 172.30.0.0/24 } ] }
